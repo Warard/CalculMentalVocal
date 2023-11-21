@@ -4,7 +4,12 @@ from time import sleep
 from gtts import gTTS
 import os
 import pygame
+from pydub import AudioSegment
+import ffmpeg
 
+AudioSegment.converter = "C:/ffmpeg/bin/ffmpeg.exe"
+AudioSegment.ffmpeg = "C:/ffmpeg/bin/ffmpeg.exe"
+AudioSegment.ffprobe = "C:/ffmpeg/bin/ffprobe.exe"
 
 #--------Calcul generation--------#
 # Lists of intervals
@@ -57,7 +62,7 @@ def randomCalcul(interval: list, operators:list) -> str:
     return question, answer
 
 #--------Voice generation--------#
-def TTS(textToSay: str, language: str):
+def TTS(textToSay: str, language: str, play_sound: str):
     '''
     Convert a string text into speech
     Arg : 
@@ -71,7 +76,14 @@ def TTS(textToSay: str, language: str):
     # save vocal calcul
     vocalCalcul.save("calcul.mp3")
     # play vocal calcul
-    os.system("start calcul.mp3")
+    if play_sound:
+        os.system("start calcul.mp3")
+
+def save_TTS_playlist(textToSay:str, language: str, file_name:str):
+    # create vocal calcul
+    vocalCalcul = gTTS(text=textToSay, lang=language, slow=False)
+    # save vocal calcul
+    vocalCalcul.save(file_name)
 
 
 #--------Choice of game parameters--------#
@@ -100,7 +112,10 @@ def chooseParameters():
     # thinking time choice 
     thinkingTime = int(input('Combien de temps de réflexion ? > '))
 
-    return choosenInterval, choosenOperators, thinkingTime
+    # Game mode
+    GUImode = bool(int(input('0: Generate a playlist\n 1: Play now > ')))
+
+    return choosenInterval, choosenOperators, thinkingTime, GUImode
 
 
 #--------G.U.I--------#
@@ -114,49 +129,73 @@ font = pygame.font.Font('Verdana.ttf', 30)
 pygame.display.flip()
 
 # Asking for parameters
-choosenInterval, choosenOperators, thinkingTime = chooseParameters()
+choosenInterval, choosenOperators, thinkingTime, GUImode = chooseParameters()
 
 #--------Main loop--------#
-run = True
-while run:
-    pygame.display.flip()
-    print("----------------------")
+if GUImode:
+    run = True
+    while run:
+        pygame.display.flip()
+        print("----------------------")
 
-    #----QUESTION----#
-    # Generate a calcul
-    question, answer = randomCalcul(Intervals[choosenInterval - 1], Operators[choosenOperators - 1])
+        #----QUESTION----#
+        # Generate a calcul
+        question, answer = randomCalcul(Intervals[choosenInterval - 1], Operators[choosenOperators - 1])
 
-    # Pygame events 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            run = False
+        # Pygame events 
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
 
-    # Read the question
-    TTS(question, 'en')
+        # Read the question
+        TTS(question, 'en', True)
+        
+        # Graphic interface update
+        print(question)
+
+        screen.fill(backgroundColour)
+        text = font.render(question, False, (0, 0, 0))
+        screen.blit(text, (width//2 - 40, height//2 - 10))
+        pygame.display.flip()
+
+
+        #----THINKING TIME----#
+        sleep(thinkingTime)
+
+        #----ANSWER----#
+        # Read the answer
+        TTS(answer, 'en', True)
+        # Graphic user interface
+        print(answer)
+        pygame.display.flip()
+
+        screen.fill(backgroundColour)
+        text = font.render(answer, False, (0, 0, 0))
+        screen.blit(text, (width//2 - 20, height//2 - 10))
+        pygame.display.flip()
+        
+        sleep(1)
+else:
+    joined_sound = AudioSegment.silent(duration=1000)
+    for i in range(3):
+        # Generate a calcul
+        question, answer = randomCalcul(Intervals[choosenInterval - 1], Operators[choosenOperators - 1])
+       
+        print(question)
+        print(answer)
+
+        # Generate mp3 files
+        question_title, answer_title = 'question' + str(i+1) + '.mp3', 'answer' + str(i+1) + '.mp3'
+        save_TTS_playlist(question, 'en', question_title)
+        save_TTS_playlist(answer, 'en', answer_title)
+
+        print(question_title)
+        print(answer_title)
+
+        print(os.getcwd())
+
+        joined_sound += AudioSegment.from_mp3(question_title)
+        joined_sound += AudioSegment.silent(duration = thinkingTime * 1000)
+        joined_sound += AudioSegment.from_mp3(answer_title)
     
-    # Graphic interface update
-    print(question)
-
-    screen.fill(backgroundColour)
-    text = font.render(question, False, (0, 0, 0))
-    screen.blit(text, (width//2 - 40, height//2 - 10))
-    pygame.display.flip()
-
-
-    #----THINKING TIME----#
-    sleep(thinkingTime)
-
-
-    #----ANSWER----#
-    # Read the answer
-    TTS(answer, 'en')
-    # Graphic user interface
-    print(answer)
-    pygame.display.flip()
-
-    screen.fill(backgroundColour)
-    text = font.render(answer, False, (0, 0, 0))
-    screen.blit(text, (width//2 - 20, height//2 - 10))
-    pygame.display.flip()
-    
-    sleep(1)
+    joined_sound.export("joinedCalculus.mp3", format="mp3")
